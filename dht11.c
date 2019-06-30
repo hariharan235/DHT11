@@ -49,8 +49,11 @@
 #include "dht11.h"
 #include "wait.h"
 
-volatile uint8_t i = 0;
-volatile uint16_t time[DATABITS + SETUPBITS];
+uint8_t i = 0;
+uint16_t time[DATABITS + SETUPBITS];
+
+float temperature;
+float humidity;
 
 
 bool UpdateRdy = 0;
@@ -81,7 +84,8 @@ initWTimer1A ()
   SYSCTL_RCGCWTIMER_R |= SYSCTL_RCGCWTIMER_R1;	// turn-on timer
   WTIMER1_CTL_R &= ~TIMER_CTL_TAEN;	// turn-off counter before reconfiguring
   WTIMER1_CFG_R = 4;		// configure as 32-bit counter (A only)
-  WTIMER1_TAMR_R = TIMER_TAMR_TAMR_1_SHOT | TIMER_TAMR_TACDIR;	// Periodic up counter
+  WTIMER1_TAMR_R = TIMER_TAMR_TAMR_1_SHOT | TIMER_TAMR_TACDIR;	// Oneshot up counter
+  WTIMER1_TAILR_R = 0x2625A00; // Timeout
 }
 
 
@@ -128,27 +132,30 @@ readSensordata ()
   initWTimer1A ();
 
   initSampler ();
+
 }
 
 
 uint8_t
-getReading (float *temp, float *humidity)
+getReading ()
 {
   uint8_t j;
   uint8_t base;
   uint8_t data[DATABITS];   // 2 byte each data (temperature and humidity) + 1 byte parity
 
+  uint8_t inthumid = 0;
+  uint8_t inttemp = 0;
   uint8_t dechumid = 0;
   uint8_t dectemp = 0;
   uint8_t parity = 0;
 
-  *temp = 0.0;
-  *humidity = 0.0;
 
 
   readSensordata ();
 
   while (!UpdateRdy);
+  UpdateRdy = 0;
+  i = 0;
 
 
   for (j = 0; j < DATABITS; j++)
@@ -159,10 +166,12 @@ getReading (float *temp, float *humidity)
 	data[j] = 0;
     }
 
+  memset(time,0,sizeof(time));
+
 
   for (j = INTHMDSTRT, base = ((RESOLUTION / 2) - 1); j <= INTHMDEND; j++)
     {
-      *humidity += data[j] << base;
+      inthumid += data[j] << base;
       base--;
     }
 
@@ -178,7 +187,7 @@ getReading (float *temp, float *humidity)
     }
   for (j = INTTEMPSTRT, base = ((RESOLUTION / 2) - 1); j <= INTTEMPEND; j++)
     {
-      *temp += data[j] << base;
+      inttemp += data[j] << base;
       base--;
     }
 
@@ -188,10 +197,13 @@ getReading (float *temp, float *humidity)
       base--;
   }
 
-  if(parity == *humidity + dechumid + dectemp + *temp)
+  inthumid += ((float) dechumid / 10);  //float math can be avoided by multiplying integral part by 10 then adding fractional part
+  inttemp += ((float) dectemp / 10);  //TODO : Need to improve code to avoid decimal data beyond the first digit
+
+  if(parity == inthumid + dechumid + dectemp + inttemp)
   {
-    *humidity += ((float) dechumid / 10);	//float math can be avoided by multiplying integral part by 10 then adding fractional part
-    *temp += ((float) dectemp / 10);	//TODO : Need to improve code to avoid decimal data beyond the first digit
+    temperature = inttemp;
+    humidity = inthumid;
     return 0;
   }
 
@@ -231,12 +243,11 @@ gpioEISR ()
 int
 main (void)
 {
-  float temperature = 0.0f;
-  float humidity = 0.0f;
+
   initDHT11Hw ();
   while(1)
   {
-      getReading (&temperature, &humidity);
+      getReading ();
   }
 
 

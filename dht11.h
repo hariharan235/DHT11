@@ -51,6 +51,7 @@
 #define DHT11_H_
 
 #include <stdint.h>
+#include <string.h>
 #include <stdbool.h>
 
 #include "tm4c123gh6pm.h"
