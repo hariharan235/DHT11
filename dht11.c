@@ -1,7 +1,7 @@
 /**
  * Project         : DHT11 source file
  * Filename        : dht11.c
- * Version         : 1.4
+ * Version         : 1.4.2
  * Author          : Hariharan Gopalarishnan
  * Date            : June 29th, 2019
  * Target Platform : TM4C123GH6PM
@@ -115,9 +115,11 @@ readSensordata ()
 
   DATA = 0;
 
-  waitMicrosecond (18000);	//~18ms
+  waitMicrosecond (18000);	// ~18ms
 
   DATA = 1;
+
+  // PE3 as Digital I/P Pin
 
   GPIO_PORTE_DIR_R &= ~(1 << 3);
 
@@ -128,19 +130,27 @@ readSensordata ()
   initSampler ();
 }
 
+
 uint8_t
 getReading (float *temp, float *humidity)
 {
   uint8_t j;
   uint8_t base;
-  *temp = 0.0;
-  *humidity = 0.0;
+  uint8_t data[DATABITS];   // 2 byte each data (temperature and humidity) + 1 byte parity
+
   uint8_t dechumid = 0;
   uint8_t dectemp = 0;
   uint8_t parity = 0;
-  uint8_t data[DATABITS];	// 2 byte each data (temperature and humidity) + 1 byte parity
+
+  *temp = 0.0;
+  *humidity = 0.0;
+
+
   readSensordata ();
+
   while (!UpdateRdy);
+
+
   for (j = 0; j < DATABITS; j++)
     {
       if (time[j + SETUPBITS] > LOW)
@@ -148,6 +158,7 @@ getReading (float *temp, float *humidity)
       else
 	data[j] = 0;
     }
+
 
   for (j = INTHMDSTRT, base = ((RESOLUTION / 2) - 1); j <= INTHMDEND; j++)
     {
@@ -200,14 +211,19 @@ gpioEISR ()
   if ((GPIO_PORTE_MIS_R & 0xFF) & (1 << 3))
     {
       GPIO_PORTE_ICR_R |= (1 << 3);
+
       time[i++] = WTIMER1_TAV_R;
+
       WTIMER1_CTL_R &= ~TIMER_CTL_TAEN;
+
       WTIMER1_TAV_R = 0;
+
       WTIMER1_CTL_R |= TIMER_CTL_TAEN;
+
       if (i == (DATABITS + SETUPBITS))
-	{
-	  UpdateRdy = 1;
-	}
+	  {
+	      UpdateRdy = 1;
+	  }
     }
 }
 
@@ -217,11 +233,10 @@ main (void)
 {
   float temperature = 0.0f;
   float humidity = 0.0f;
-  uint8_t valid = 1;
   initDHT11Hw ();
   while(1)
   {
-    valid = getReading (&temperature, &humidity);
+      getReading (&temperature, &humidity);
   }
 
 

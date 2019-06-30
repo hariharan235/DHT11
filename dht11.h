@@ -1,7 +1,7 @@
 /**
  * Project         : DHT11 header file
  * Filename        : dht11.h
- * Version         : 1.4
+ * Version         : 1.4.1
  * Author          : Hariharan Gopalarishnan
  * Date            : June 29th, 2019
  * Target Platform : TM4C123GH6PM
