@@ -70,7 +70,7 @@
 #define INTTEMPEND 23
 #define DECTEMPSTRT 24
 #define DECTEMPEND 31
-#define PARRITYSTRT 32
+#define PARITYSTRT 32
 #define PARITYEND 39
 
 #endif /* DHT11_H_ */

@@ -72,12 +72,6 @@ initDHT11Hw ()
   // Enable GPIO port E
   SYSCTL_RCGC2_R |= SYSCTL_RCGC2_GPIOE;
 
-  // PE3 as Digital O/P Pin
-
-  GPIO_PORTE_DIR_R |= (1 << 3);
-  GPIO_PORTE_DEN_R |= (1 << 3);
-  DATA = 1;
-  waitMicrosecond (1000000);	// 1 second
 }
 
 
@@ -87,7 +81,7 @@ initWTimer1A ()
   SYSCTL_RCGCWTIMER_R |= SYSCTL_RCGCWTIMER_R1;	// turn-on timer
   WTIMER1_CTL_R &= ~TIMER_CTL_TAEN;	// turn-off counter before reconfiguring
   WTIMER1_CFG_R = 4;		// configure as 32-bit counter (A only)
-  WTIMER1_TAMR_R = TIMER_TAMR_TAMR_PERIOD | TIMER_TAMR_TACDIR;	// Periodic up counter
+  WTIMER1_TAMR_R = TIMER_TAMR_TAMR_1_SHOT | TIMER_TAMR_TACDIR;	// Periodic up counter
 }
 
 
@@ -108,6 +102,17 @@ initSampler ()
 void
 readSensordata ()
 {
+
+  // PE3 as Digital O/P Pin
+
+  GPIO_PORTE_DIR_R |= (1 << 3);
+
+  GPIO_PORTE_DEN_R |= (1 << 3);
+
+  DATA = 1;
+
+  waitMicrosecond (1000000);    // 1 second
+
   DATA = 0;
 
   waitMicrosecond (18000);	//~18ms
@@ -123,13 +128,16 @@ readSensordata ()
   initSampler ();
 }
 
-void
+uint8_t
 getReading (float *temp, float *humidity)
 {
   uint8_t j;
   uint8_t base;
+  *temp = 0.0;
+  *humidity = 0.0;
   uint8_t dechumid = 0;
   uint8_t dectemp = 0;
+  uint8_t parity = 0;
   uint8_t data[DATABITS];	// 2 byte each data (temperature and humidity) + 1 byte parity
   readSensordata ();
   while (!UpdateRdy);
@@ -163,8 +171,24 @@ getReading (float *temp, float *humidity)
       base--;
     }
 
-  *humidity += ((float) dechumid / 10);	//float math can be avoided by multiplying integral part by 10 then adding fractional part
-  *temp += ((float) dectemp / 10);	//TODO : Need to improve code to avoid decimal data beyond the first digit
+  for (j = PARITYSTRT, base = ((RESOLUTION / 2) - 1); j <= PARITYEND; j++)
+  {
+      parity += data[j] << base;
+      base--;
+  }
+
+  if(parity == *humidity + dechumid + dectemp + *temp)
+  {
+    *humidity += ((float) dechumid / 10);	//float math can be avoided by multiplying integral part by 10 then adding fractional part
+    *temp += ((float) dectemp / 10);	//TODO : Need to improve code to avoid decimal data beyond the first digit
+    return 0;
+  }
+
+  else
+  {
+      return 1;
+  }
+
 
 }
 
@@ -193,8 +217,12 @@ main (void)
 {
   float temperature = 0.0f;
   float humidity = 0.0f;
+  uint8_t valid = 1;
   initDHT11Hw ();
-  getReading (&temperature, &humidity);
+  while(1)
+  {
+    valid = getReading (&temperature, &humidity);
+  }
 
 
 
@@ -203,6 +231,6 @@ main (void)
   OUTPUT = 0;
 #endif
 
-  while (1);
+//  while (1);
 
 }
